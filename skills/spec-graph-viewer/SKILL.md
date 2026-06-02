@@ -130,9 +130,21 @@ placeholder tokens to substitute:
 
 ---
 
-### 3. Serialize and embed — two mandatory escape steps
+### 3. Substitute the data into the template — one ephemeral step, no build script
 
-Both steps are required. Both have caused silent breakage before.
+This step is a **single, throwaway substitution**: read the template string,
+replace the four placeholders with their serialized JSON, write the result to
+the output path. Run it as ONE ephemeral command (e.g. a `python3 - <<'PY' …
+PY` heredoc that reads the template + data files and writes the HTML) — or do
+the replacements directly with your edit tools. **Do NOT author, save, or
+commit a `build.py`, CLI wrapper, Makefile, or any other build artifact.** When
+the command exits, nothing should remain in the repo except the output HTML.
+The substitution is mechanical glue, not software to be kept.
+
+The serialization has two mandatory escape rules. Both are required, both apply
+inside that one-shot command, and both have caused silent breakage before. (The
+snippets are Python, but the rules hold in any language — escape `</`, and feed
+the replacement verbatim rather than letting a regex engine reinterpret it.)
 
 **Step A — escape `</` inside JSON strings.**
 Before substituting, replace every `</` with `<\/` in the serialized JSON
@@ -205,8 +217,10 @@ Leave all of this structure as-is; only substitute the four data markers.
 ## Critical rules
 
 - One self-contained HTML file — no separate CSS, JS, or asset files.
-- No Python package, CLI wrapper, or test suite — this is an agent task: read,
-  substitute, write.
+- No Python package, CLI wrapper, build script, Makefile, or test suite — this
+  is an agent task: read, substitute, write. The substitution may use a single
+  ephemeral command (e.g. a heredoc), but no build artifact may be saved or
+  committed; only the output HTML remains.
 - Never assume an output path — ask the user; suggest `docs/spec-graph.html`.
 - No hardcoded corpus, module names, layer names, or project names in this
   skill. Every example above is an illustrative placeholder.
