@@ -26,7 +26,7 @@ you keep a taxonomy file, and where to write the output.
 ## Install
 
 ```
-/plugin marketplace add <github-owner>/<repo>
+/plugin marketplace add franciscoandrades/spec-graph
 /plugin install spec-graph@spec-graph
 ```
 
@@ -69,7 +69,10 @@ related:
 - `related:` is the dependency edge list (bare id, or `{id, because}` for an
   edge label). Edges point successor → predecessor.
 - The first description blockquote becomes the node's summary.
-- A file with no frontmatter is included as an **orphan** with a warning.
+- A file with no frontmatter triggers an offer to **generate the frontmatter
+  for you** by reading the spec (inferring title and `related:` dependencies
+  from the prose, for you to confirm); decline and it's included as an **orphan**
+  with a warning.
 
 ## Customization
 

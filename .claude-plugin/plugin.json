@@ -8,5 +8,5 @@
   },
   "license": "MIT",
   "keywords": ["specs", "documentation", "dependency-graph", "dag", "visualization", "cytoscape", "skills"],
-  "repository": "https://github.com/TODO/spec-graph"
+  "repository": "https://github.com/franciscoandrades/spec-graph"
 }

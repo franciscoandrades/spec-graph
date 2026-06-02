@@ -26,6 +26,29 @@ proceeding.
 
 ---
 
+### Step 1b — List candidate files and confirm what counts as a spec
+
+Once the directory is known, glob it for `*.md` files and **present the full
+list to the user** before reading or parsing anything. Do not assume every
+`*.md` file is a spec.
+
+For each candidate, show enough to let the user decide: the filename, and (if
+cheaply available) its `title`/first H1 and `type` frontmatter field. Then ask
+the user to confirm the selection. Useful prompts:
+
+- "Here are the N markdown files I found — which of these should be treated as
+  specs?"
+- Offer obvious filters when the corpus is mixed: e.g. "include only files with
+  `type: spec`", "exclude `README.md` / `CHANGELOG.md` / templates", or "include
+  everything in `docs/specs/` but nothing in `docs/notes/`."
+
+Proceed only with the confirmed set. If the user gives a rule (e.g. "anything
+with `type: spec`"), apply it but still report the resulting list so they can
+catch surprises. Re-confirm if the glob surfaces files in unexpected
+subdirectories.
+
+---
+
 ### Step 2 — Confirm the frontmatter and description conventions
 
 The skill must adapt to the user's schema. Present the example below as one
@@ -85,8 +108,22 @@ For each file found, extract:
 
 **Edge cases — handle explicitly:**
 
-- **No frontmatter at all:** Still include the spec. Set `title` from first H1,
-  `related: []`. Emit a WARNING flagging the file for inspection.
+- **No frontmatter at all:** Do NOT silently guess, and do NOT just interrogate
+  the user field by field. **Offer to generate the frontmatter for them by
+  reading the spec.** Read the file's prose and propose a complete frontmatter
+  block (using the schema confirmed in Step 2):
+  - `title` from the first H1 or the document's evident subject.
+  - `related` inferred from the prose — any references to other specs by name,
+    id, or filename, and any "depends on / builds on / requires" language. Only
+    list dependencies you can point to in the text; never invent one.
+  - `status`/`type` and any other schema fields if the prose makes them clear;
+    otherwise leave them for the user to fill.
+
+  Present the proposed block to the user and ask them to confirm or correct it.
+  On confirmation, **write the frontmatter back into the file** so the corpus is
+  consistent, and proceed with those values. If the user declines the offer
+  entirely, fall back to `title` from first H1, `related: []`, and emit a WARNING
+  flagging the file for inspection.
 - **Type field present and not `spec`** (or whatever the user's equivalent is):
   Skip the file entirely — it is an ADR, plan, or note, not a spec.
 - **Malformed YAML:** STOP. Tell the user which file failed and what the parser
