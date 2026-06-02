@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "spec-graph",
+  "description": "Self-marketplace for the spec-graph plugin — parse, annotate, and visualize a spec corpus as an interactive dependency graph.",
+  "owner": {
+    "name": "Francisco Andrades",
+    "email": "francisco.andrades@sansano.usm.cl"
+  },
+  "plugins": [
+    {
+      "name": "spec-graph",
+      "source": "./",
+      "description": "Three skills — spec-dag (parse a spec corpus into a DAG), spec-annotations (modules/layers/walkthrough enrichment), and spec-graph-viewer (render a self-contained interactive HTML graph).",
+      "category": "documentation",
+      "keywords": ["specs", "dependency-graph", "dag", "visualization"]
+    }
+  ]
+}

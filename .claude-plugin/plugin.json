@@ -1,0 +1,12 @@
+{
+  "name": "spec-graph",
+  "version": "0.1.0",
+  "description": "Turn a directory of spec markdown files into an interactive dependency-graph viewer. Parses YAML frontmatter into a DAG, optionally enriches it with module/layer/section annotations, and renders a single self-contained HTML page — no build step.",
+  "author": {
+    "name": "Francisco Andrades",
+    "email": "francisco.andrades@sansano.usm.cl"
+  },
+  "license": "MIT",
+  "keywords": ["specs", "documentation", "dependency-graph", "dag", "visualization", "cytoscape", "skills"],
+  "repository": "https://github.com/TODO/spec-graph"
+}

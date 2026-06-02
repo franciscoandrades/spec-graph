@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Editor directories
+.idea/
+.vscode/
+*.code-workspace
+
+# Node (if tooling is added later)
+node_modules/

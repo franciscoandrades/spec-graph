@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Spec Dependency Graph</title>
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/marked@11.1.1/marked.min.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #0f1115; color: #e5e7eb; }
+    body { display: flex; flex-direction: column; }
+    header { padding: 0.75rem 1rem; border-bottom: 1px solid #22252c; display: flex; justify-content: space-between; align-items: center; flex: 0 0 auto; }
+    header h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+    header .muted { color: #9ca3af; font-size: 0.85rem; }
+    #warnings { background: #3a2a10; color: #fde68a; padding: 0.6rem 1rem; border-bottom: 1px solid #5a3e15; font-size: 0.9rem; flex: 0 0 auto; }
+    #warnings details summary { cursor: pointer; }
+    #warnings ul { margin: 0.4rem 0 0 1.2rem; padding: 0; }
+
+    .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid; cursor: pointer; user-select: none; transition: filter 0.1s; }
+    .chip:hover { filter: brightness(1.25); }
+    .chip.active { box-shadow: 0 0 0 2px #fde047 inset; }
+    .chip .count { opacity: 0.55; font-size: 0.7em; }
+    /* Per-type chip palette */
+    .chip.constraint { background: #451a03; color: #fbbf24; border-color: #78350f; }
+    .chip.component  { background: #083344; color: #22d3ee; border-color: #155e75; }
+    .chip.endpoint   { background: #1a2e05; color: #a3e635; border-color: #365314; }
+    .chip.entity     { background: #500724; color: #f472b6; border-color: #831843; }
+    .chip.library    { background: #2e1065; color: #a78bfa; border-color: #4c1d95; }
+    .chip.reference  { background: #431407; color: #fb923c; border-color: #7c2d12; }
+    /* Layer chip palette (separate from module types) */
+    .chip.layer-frontend   { background: #0c4a6e; color: #7dd3fc; border-color: #0369a1; }
+    .chip.layer-api        { background: #365314; color: #bef264; border-color: #4d7c0f; }
+    .chip.layer-processing { background: #3b0764; color: #c4b5fd; border-color: #6d28d9; }
+    .chip.layer-database   { background: #831843; color: #fbcfe8; border-color: #be185d; }
+    .chip.layer-storage    { background: #7c2d12; color: #fed7aa; border-color: #c2410c; }
+
+    #container { display: flex; flex: 1 1 auto; min-height: 0; }
+    #left-panel { flex: 0 0 240px; height: 100%; padding: 1rem 0.9rem; overflow-y: auto; border-right: 1px solid #22252c; font-size: 0.82rem; }
+    #left-panel .left-title { font-size: 0.85rem; font-weight: 600; color: #e5e7eb; margin: 0 0 0.7rem; }
+    #left-panel .chip-group { margin-bottom: 0.9rem; }
+    #left-panel .chip-group h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin: 0 0 0.35rem; font-weight: 600; }
+    #left-panel .chip { display: inline-flex; margin: 0.15rem 0.2rem 0.15rem 0; }
+    #cy { flex: 1 1 auto; min-width: 0; height: 100%; background: #11141a; }
+    #panel { flex: 0 0 320px; height: 100%; padding: 1.25rem 1.5rem; overflow-y: auto; border-left: 1px solid #22252c; }
+    #panel h2 { margin-top: 0; font-size: 1.05rem; line-height: 1.35; }
+    #panel .tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid #22252c; margin: -1.25rem -1.5rem 1rem; padding: 0 1.5rem; }
+    #panel .tab { background: none; border: none; color: #9ca3af; padding: 0.65rem 0.6rem 0.55rem; font-size: 0.85rem; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; font-family: inherit; }
+    #panel .tab:hover { color: #e5e7eb; }
+    #panel .tab.active { color: #fde047; border-bottom-color: #fde047; }
+    #panel .content-chip { vertical-align: baseline; font-size: 0.82em; padding: 0.05rem 0.45rem; }
+    #panel .spec-link { color: #93c5fd; cursor: pointer; text-decoration: underline dotted; }
+    #panel .spec-link:hover { color: #bfdbfe; text-decoration: underline solid; }
+    /* Walkthrough collapsible sections */
+    #panel .wt-block { margin: 0.4rem 0; border: 1px solid #22252c; border-radius: 6px; background: #131720; overflow: hidden; }
+    #panel .wt-block summary { padding: 0.5rem 0.75rem; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+    #panel .wt-block summary::-webkit-details-marker { display: none; }
+    #panel .wt-block summary::after { content: '▸'; color: #6b7280; font-size: 0.8rem; margin-left: auto; transition: transform 0.15s; flex: 0 0 auto; }
+    #panel .wt-block[open] summary::after { transform: rotate(90deg); }
+    #panel .wt-block summary .wt-title { color: #9ca3af; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #panel .wt-block summary .wt-extra { display: inline-flex; gap: 0.2rem; }
+    #panel .wt-untagged { display: inline-flex; padding: 0.05rem 0.5rem; border-radius: 999px; background: #1a1d24; color: #6b7280; font-size: 0.75rem; border: 1px solid #374151; }
+    #panel .wt-body { padding: 0.5rem 0.9rem 0.85rem; border-top: 1px solid #22252c; font-size: 0.88rem; line-height: 1.55; }
+    #panel .wt-body > :first-child { margin-top: 0.3rem; }
+    #panel .wt-body h3, #panel .wt-body h4 { font-size: 0.95rem; margin: 1rem 0 0.3rem; color: #e5e7eb; }
+    #panel .wt-body pre { overflow-x: auto; background: #0a0d12; padding: 0.7rem; border-radius: 4px; font-size: 0.78rem; line-height: 1.4; }
+    #panel .wt-body table { font-size: 0.85em; border-collapse: collapse; margin: 0.5rem 0; display: block; overflow-x: auto; }
+    #panel .wt-body th, #panel .wt-body td { border: 1px solid #22252c; padding: 0.25rem 0.5rem; text-align: left; }
+    #panel .wt-body blockquote { border-left: 3px solid #374151; padding-left: 0.7rem; color: #9ca3af; margin: 0.5rem 0; }
+    #panel .meta { color: #9ca3af; font-size: 0.85rem; margin-bottom: 0.75rem; }
+    #panel .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; background: #1f2937; color: #9ddf2e; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 0.4rem; }
+    #panel .badge.orphan { color: #fde68a; }
+    #panel .modules-block { margin-top: 1rem; }
+    #panel .modules-block .group-label { display: block; color: #6b7280; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0.5rem 0 0.3rem; }
+    #panel .member-list { margin: 0.5rem 0 0; padding: 0; list-style: none; }
+    #panel .member-list li { padding: 0.3rem 0; cursor: pointer; color: #93c5fd; }
+    #panel .member-list li:hover { color: #bfdbfe; text-decoration: underline; }
+    #panel a { color: #60a5fa; }
+    #panel p { line-height: 1.5; }
+    #panel code { background: #1f2937; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.9em; }
+    #panel .filter-note { color: #fcd34d; font-size: 0.8rem; margin: 0.2rem 0 0.6rem; padding: 0.35rem 0.55rem; background: #2a2410; border: 1px solid #5a3e15; border-radius: 4px; }
+    .empty { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Spec Dependency Graph</h1>
+    <span class="muted" id="stats"></span>
+  </header>
+  <div id="warnings"></div>
+  <div id="container">
+    <div id="left-panel"></div>
+    <div id="cy"></div>
+    <div id="panel"><p class="empty">Click a node, edge, module, or component to see details.</p></div>
+  </div>
+  <script>
+    const SPECS = __SPECS_JSON__;
+    const EDGES = __EDGES_JSON__;
+    const MODULES = __MODULES_JSON__;
+    const LAYERS = __LAYERS_JSON__;
+
+    (function () {
+      if (typeof cytoscape !== 'function') {
+        document.getElementById('cy').innerHTML =
+          '<div style="padding:1rem;color:#fca5a5">Cytoscape failed to load from the CDN. Check your network / try a different browser.</div>';
+        return;
+      }
+
+      const byId = Object.fromEntries(SPECS.map(s => [s.id, s]));
+      const moduleById = Object.fromEntries(MODULES.map(m => [m.id, m]));
+      const layerById = Object.fromEntries(LAYERS.map(l => [l.id, l]));
+      const MODULE_TYPES = ['constraint', 'component', 'endpoint', 'entity', 'library', 'reference'];
+
+      function layerLetters(s) {
+        return (s.layers || [])
+          .map(id => layerById[id] && layerById[id].letter)
+          .filter(Boolean)
+          .join(' · ');
+      }
+
+      // Header stats.
+      const orphans = SPECS.filter(s => s.is_orphan);
+      const orphanWord = orphans.length === 1 ? 'orphan' : 'orphans';
+      document.getElementById('stats').textContent =
+        SPECS.length + ' specs · ' + EDGES.length + ' edges · ' +
+        MODULES.length + ' modules · ' + orphans.length + ' ' + orphanWord;
+
+      // Warnings banner.
+      const banner = document.getElementById('warnings');
+      if (orphans.length) {
+        banner.innerHTML =
+          '<details open><summary>' + orphans.length +
+          ' ' + orphanWord + ' — inspect</summary><ul>' +
+          orphans.map(s => '<li><strong>' + s.ordinal + '. ' + s.title +
+            '</strong> — no YAML frontmatter or no edges. Add <code>related: […]</code> or confirm orphan status.</li>').join('') +
+          '</ul></details>';
+      } else {
+        banner.style.display = 'none';
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // Module filter strip
+      // ──────────────────────────────────────────────────────────────
+      const memberSpecs = m => SPECS.filter(s => (s.modules || []).includes(m.id));
+
+      function chipHtml(m, includeCount) {
+        const n = memberSpecs(m).length;
+        const count = (includeCount === false) ? '' : '<span class="count">' + n + '</span>';
+        return '<span class="chip ' + m.type + '" data-module-id="' + m.id +
+               '" title="' + (m.description || '').replace(/"/g, '&quot;') + '">' +
+               m.name + count + '</span>';
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // Cytoscape setup
+      // ──────────────────────────────────────────────────────────────
+      const nodes = SPECS.map(s => {
+        const letters = layerLetters(s);
+        const label = letters
+          ? s.ordinal + '. ' + s.title + '\n' + letters
+          : s.ordinal + '. ' + s.title;
+        return {
+          data: { id: s.id, label: label },
+          classes: s.is_orphan ? 'orphan' : ''
+        };
+      });
+      // Flip source/target so arrows render predecessor → successor (downward).
+      const edges = EDGES.map(e => ({
+        data: { id: e.to + '->' + e.from, source: e.to, target: e.from }
+      }));
+
+      const cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements: { nodes: nodes, edges: edges },
+        style: [
+          { selector: 'node', style: {
+              'background-color': '#1f2937',
+              'border-color': '#60a5fa',
+              'border-width': 1.5,
+              'color': '#e5e7eb',
+              'label': 'data(label)',
+              'text-valign': 'center',
+              'text-halign': 'center',
+              'font-size': 18,
+              'font-weight': 500,
+              'width': 'label',
+              'height': 'label',
+              'padding': 14,
+              'shape': 'round-rectangle',
+              'text-wrap': 'wrap',
+              'text-max-width': 280
+          }},
+          { selector: 'node.orphan', style: {
+              'border-style': 'dashed',
+              'border-color': '#9ca3af',
+              'color': '#9ca3af',
+              'background-color': '#15171c'
+          }},
+          { selector: 'edge', style: {
+              'curve-style': 'bezier',
+              'target-arrow-shape': 'triangle',
+              'arrow-scale': 0.85,
+              'line-color': '#4b5563',
+              'target-arrow-color': '#4b5563',
+              'width': 1.5
+          }},
+          { selector: 'node:selected', style: {
+              'border-color': '#fde047',
+              'border-width': 3
+          }},
+          { selector: 'edge:selected', style: {
+              'line-color': '#fde047',
+              'target-arrow-color': '#fde047',
+              'width': 2.5
+          }},
+          { selector: '.dimmed', style: {
+              'opacity': 0.18
+          }},
+          { selector: 'node.module-active', style: {
+              'border-color': '#fde047',
+              'border-width': 2.5
+          }}
+        ]
+      });
+
+      const incomingByNode = new Set();
+      cy.edges().forEach(e => incomingByNode.add(e.target().id()));
+      const rootNodes = cy.nodes().filter(n => !incomingByNode.has(n.id()));
+
+      cy.layout({
+        name: 'breadthfirst',
+        directed: true,
+        roots: rootNodes,
+        spacingFactor: 0.85,
+        padding: 30
+      }).run();
+
+      // ──────────────────────────────────────────────────────────────
+      // Filter rail: Components (layers) + Modules, AND-combined.
+      // One selection per dimension; the highlight = specs matching ALL
+      // active dimensions (intersection). Clicking the active chip in a
+      // dimension clears just that dimension.
+      // ──────────────────────────────────────────────────────────────
+      const layerMembers = l => SPECS.filter(s => (s.layers || []).includes(l.id));
+      const leftEl = document.getElementById('left-panel');
+      let activeFilter = { module: null, layer: null };
+
+      const EMPTY_PANEL =
+        '<p class="empty">Click a node, edge, module, or component to see details.</p>';
+
+      function highlightedSpecs() {
+        if (!activeFilter.module && !activeFilter.layer) return null;
+        return SPECS.filter(s =>
+          (!activeFilter.module || (s.modules || []).includes(activeFilter.module)) &&
+          (!activeFilter.layer  || (s.layers  || []).includes(activeFilter.layer)));
+      }
+
+      // Re-render graph dimming + chip active states from activeFilter.
+      function applyFilter() {
+        const hl = highlightedSpecs();
+        if (!hl) {
+          cy.elements().removeClass('dimmed').removeClass('module-active');
+        } else {
+          const ids = new Set(hl.map(s => s.id));
+          cy.elements().addClass('dimmed').removeClass('module-active');
+          hl.forEach(s => cy.getElementById(s.id).removeClass('dimmed').addClass('module-active'));
+          // Un-dim edges where BOTH endpoints survive the intersection.
+          cy.edges().forEach(e => {
+            if (ids.has(e.source().id()) && ids.has(e.target().id())) e.removeClass('dimmed');
+          });
+        }
+        leftEl.querySelectorAll('.chip[data-module-id]').forEach(el =>
+          el.classList.toggle('active', el.dataset.moduleId === activeFilter.module));
+        leftEl.querySelectorAll('.chip[data-layer-id]').forEach(el =>
+          el.classList.toggle('active', el.dataset.layerId === activeFilter.layer));
+      }
+
+      // Reset both dimensions (graph + chips). Does NOT touch the panel —
+      // the caller decides what the panel shows next.
+      function clearFilters() {
+        activeFilter = { module: null, layer: null };
+        cy.elements().removeClass('dimmed').removeClass('module-active');
+        leftEl.querySelectorAll('.chip').forEach(el => el.classList.remove('active'));
+      }
+
+      // After a dimension is toggled off, fall back to the other active
+      // dimension's panel, or the empty state if nothing is active.
+      function refreshFilterPanel() {
+        if (activeFilter.module) showModulePanel(moduleById[activeFilter.module], memberSpecs(moduleById[activeFilter.module]));
+        else if (activeFilter.layer) showLayerPanel(layerById[activeFilter.layer], layerMembers(layerById[activeFilter.layer]));
+        else panel.innerHTML = EMPTY_PANEL;
+      }
+
+      function toggleModule(id) {
+        if (!moduleById[id]) return;
+        activeFilter.module = (activeFilter.module === id) ? null : id;
+        applyFilter();
+        if (activeFilter.module) showModulePanel(moduleById[id], memberSpecs(moduleById[id]));
+        else refreshFilterPanel();
+      }
+
+      function toggleLayer(id) {
+        if (!layerById[id]) return;
+        activeFilter.layer = (activeFilter.layer === id) ? null : id;
+        applyFilter();
+        if (activeFilter.layer) showLayerPanel(layerById[id], layerMembers(layerById[id]));
+        else refreshFilterPanel();
+      }
+
+      function leftLayerChipHtml(l) {
+        const n = layerMembers(l).length;
+        return '<span class="chip layer-' + l.id + '" data-layer-id="' + l.id +
+               '" title="' + (l.description || '').replace(/"/g, '&quot;') + '">' +
+               l.letter + ' · ' + l.name + '<span class="count">' + n + '</span></span>';
+      }
+
+      function renderLeftPanel() {
+        const layerList = LAYERS.filter(l => layerMembers(l).length > 0);
+        const hasLayers = layerList.length > 0;
+        const hasModules = MODULES.length > 0;
+        if (!hasLayers && !hasModules) { leftEl.style.display = 'none'; return; }
+
+        let html = '';
+        if (hasLayers) {
+          html += '<div class="left-title">Components</div>' +
+                  '<div class="chip-group">' + layerList.map(leftLayerChipHtml).join(' ') + '</div>';
+        }
+        if (hasModules) {
+          const byType = {};
+          MODULE_TYPES.forEach(t => byType[t] = MODULES.filter(m => m.type === t));
+          const parts = MODULE_TYPES
+            .filter(t => byType[t].length > 0)
+            .map(t => '<div class="chip-group"><h3>' + t + '</h3>' +
+                      byType[t].map(m => chipHtml(m)).join(' ') + '</div>');
+          html += '<div class="left-title"' + (hasLayers ? ' style="margin-top:0.6rem"' : '') +
+                  '>Modules</div>' + parts.join('');
+        }
+        leftEl.innerHTML = html;
+        leftEl.querySelectorAll('.chip[data-module-id]').forEach(el =>
+          el.addEventListener('click', e => { e.stopPropagation(); toggleModule(el.dataset.moduleId); }));
+        leftEl.querySelectorAll('.chip[data-layer-id]').forEach(el =>
+          el.addEventListener('click', e => { e.stopPropagation(); toggleLayer(el.dataset.layerId); }));
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // Panel renderers
+      // ──────────────────────────────────────────────────────────────
+      const panel = document.getElementById('panel');
+
+      function specLayersHtml(s) {
+        const ids = s.layers || [];
+        if (ids.length === 0) return '';
+        const chips = ids
+          .map(id => layerById[id])
+          .filter(Boolean)
+          .map(l => '<span class="chip layer-' + l.id +
+                    '" data-layer-id="' + l.id + '" title="' +
+                    (l.description || '').replace(/"/g, '&quot;') + '">' +
+                    l.letter + ' · ' + l.name + '</span>')
+          .join(' ');
+        return '<div class="modules-block"><h3 style="font-size:0.9rem;margin-bottom:0.2rem">Components</h3>' +
+               chips + '</div>';
+      }
+
+      function specModulesHtml(s) {
+        const ids = s.modules || [];
+        if (ids.length === 0) return '';
+        const grouped = {};
+        ids.forEach(id => {
+          const m = moduleById[id];
+          if (!m) return;
+          (grouped[m.type] = grouped[m.type] || []).push(m);
+        });
+        const parts = MODULE_TYPES
+          .filter(t => grouped[t])
+          .map(t => '<span class="group-label">' + t + '</span>' +
+                    grouped[t].map(m => chipHtml(m, false)).join(' '));
+        return '<div class="modules-block"><h3 style="font-size:0.9rem;margin-bottom:0.2rem">Modules</h3>' +
+               parts.join('') + '</div>';
+      }
+
+      function moduleChipHtml(m) {
+        const tip = (m.description || '').replace(/<[^>]+>/g, '').replace(/"/g, '&quot;');
+        return '<span class="chip ' + m.type + ' content-chip" data-module-id="' + m.id +
+               '" title="' + tip + '">' + m.name + '</span>';
+      }
+      function layerChipHtml(l) {
+        const tip = (l.description || '').replace(/"/g, '&quot;');
+        return '<span class="chip layer-' + l.id + ' content-chip" data-layer-id="' + l.id + '" title="' +
+               tip + '">' + l.letter + ' · ' + l.name + '</span>';
+      }
+      function specLinkHtml(s) {
+        return '<span class="spec-link" data-spec-id="' + s.id + '">' + s.title + '</span>';
+      }
+      function escapeRegexRC(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+
+      function escapeHtmlText(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      }
+
+      // Split markdown into sections at `## ` headers. Returns
+      // [{title, body}, …]. Content before the first `## ` becomes an
+      // (intro) block.
+      function splitSections(markdown) {
+        const lines = (markdown || '').split('\n');
+        const sections = [];
+        let current = { title: '(intro)', body: [] };
+        for (const line of lines) {
+          if (/^##\s+/.test(line) && !/^###/.test(line)) {
+            sections.push(current);
+            current = { title: line.replace(/^##\s+/, '').trim(), body: [] };
+          } else {
+            current.body.push(line);
+          }
+        }
+        sections.push(current);
+        return sections
+          .map(s => ({ title: s.title, body: s.body.join('\n') }))
+          .filter(s => s.body.trim() || s.title !== '(intro)');
+      }
+
+      // Render walkthrough sections. The spec object can carry a
+      // `walkthrough` field — an array of {title, modules, body} that the
+      // agent populated by *reading* each section and deciding what it is
+      // about. If walkthrough is absent, fall back to splitting `content`
+      // by `## ` headers and rendering with no module assignments (the
+      // reader will see "no module" pills — the agent needs to do the work).
+      function renderContent(spec) {
+        let sections;
+        if (Array.isArray(spec.walkthrough) && spec.walkthrough.length) {
+          sections = spec.walkthrough.map(s => ({
+            title: s.title || '(intro)',
+            body: s.body || '',
+            modules: Array.isArray(s.modules) ? s.modules : []
+          }));
+        } else {
+          const raw = splitSections(spec.content || '');
+          sections = raw.map(s => ({ title: s.title, body: s.body, modules: [] }));
+        }
+
+        return sections.map((sec, idx) => {
+          const moduleBadges = (sec.modules || [])
+            .map(id => moduleById[id])
+            .filter(Boolean)
+            .map(m => moduleChipHtml(m))
+            .join('');
+          const primaryBadge = moduleBadges ||
+            '<span class="wt-untagged">no module</span>';
+
+          let bodyHtml = marked.parse(sec.body || '');
+          bodyHtml = bodyHtml.replace(/\[\[module:([^\]]+)\]\]/g, (_, id) => {
+            const m = moduleById[id]; return m ? moduleChipHtml(m) : id;
+          });
+          bodyHtml = bodyHtml.replace(/\[\[layer:([^\]]+)\]\]/g, (_, id) => {
+            const l = layerById[id]; return l ? layerChipHtml(l) : id;
+          });
+          bodyHtml = bodyHtml.replace(/\[\[spec:([^\]]+)\]\]/g, (_, id) => {
+            const target = byId[id]; return target ? specLinkHtml(target) : id;
+          });
+
+          const title = sec.title === '(intro)' ? 'Intro' : sec.title;
+          return '<details class="wt-block"' + (idx === 0 ? ' open' : '') + '>' +
+                 '<summary>' + primaryBadge +
+                 '<span class="wt-title">' + escapeHtmlText(title) + '</span>' +
+                 '</summary>' +
+                 '<div class="wt-body">' + bodyHtml + '</div>' +
+                 '</details>';
+        }).join('');
+      }
+
+      function specOverviewHtml(s) {
+        const meta = [s.date, s.status].filter(Boolean).join(' — ');
+        const purposeHtml = marked.parse(s.purpose || '');
+        const badge = s.is_orphan
+          ? '<span class="badge orphan">orphan</span>'
+          : '<span class="badge">' + s.ordinal + '</span>';
+        return '<h2>' + s.full_title + badge + '</h2>' +
+               (meta ? '<div class="meta">' + meta + '</div>' : '') +
+               (purposeHtml || '<p class="empty">No purpose blockquote.</p>') +
+               (s.path ? '<p><a href="' + s.path + '" target="_blank">View source →</a></p>' : '') +
+               specLayersHtml(s) +
+               specModulesHtml(s);
+      }
+
+      function specWalkthroughHtml(s) {
+        return '<h2>' + s.full_title + ' <span class="badge">' + s.ordinal + '</span></h2>' +
+               '<div class="meta">Walkthrough — sections tagged by topic</div>' +
+               renderContent(s);
+      }
+
+      function wirePanelInteractions(scopeEl, currentSpec) {
+        scopeEl.querySelectorAll('[data-module-id]').forEach(el => {
+          el.addEventListener('click', e => {
+            e.stopPropagation();
+            toggleModule(el.dataset.moduleId);
+          });
+        });
+        scopeEl.querySelectorAll('[data-layer-id]').forEach(el => {
+          el.addEventListener('click', e => {
+            e.stopPropagation();
+            toggleLayer(el.dataset.layerId);
+          });
+        });
+        scopeEl.querySelectorAll('[data-spec-id]').forEach(el => {
+          el.addEventListener('click', e => {
+            e.stopPropagation();
+            const target = byId[el.dataset.specId];
+            if (target && target.id !== (currentSpec && currentSpec.id)) {
+              clearFilters();
+              cy.$(':selected').unselect();
+              cy.getElementById(target.id).select();
+              showSpecPanel(target);
+            }
+          });
+        });
+      }
+
+      function showSpecTab(s, tabName) {
+        panel.querySelectorAll('.tabs .tab').forEach(b => {
+          b.classList.toggle('active', b.dataset.tab === tabName);
+        });
+        const tc = panel.querySelector('.tab-content');
+        tc.innerHTML = tabName === 'walkthrough' ? specWalkthroughHtml(s) : specOverviewHtml(s);
+        wirePanelInteractions(tc, s);
+      }
+
+      function showSpecPanel(s) {
+        const hasContent = !!(s.content && s.content.trim());
+        const tabs =
+          '<div class="tabs">' +
+          '<button class="tab active" data-tab="overview" type="button">Overview</button>' +
+          (hasContent ? '<button class="tab" data-tab="walkthrough" type="button">Walkthrough</button>' : '') +
+          '</div>';
+        panel.innerHTML = tabs + '<div class="tab-content"></div>';
+        panel.querySelectorAll('.tabs .tab').forEach(btn => {
+          btn.addEventListener('click', () => showSpecTab(s, btn.dataset.tab));
+        });
+        showSpecTab(s, 'overview');
+      }
+
+      function showEdgePanel(edge) {
+        const successor = byId[edge.target().id()];
+        const predecessor = byId[edge.source().id()];
+        if (!successor || !predecessor) return;
+        const edgeData = EDGES.find(e => e.from === successor.id && e.to === predecessor.id);
+        const because = edgeData && edgeData.because;
+        panel.innerHTML =
+          '<h2><span class="badge">' + successor.ordinal + '</span> ' + successor.title +
+          ' <span style="color:#9ca3af">depends on</span> ' +
+          '<span class="badge">' + predecessor.ordinal + '</span> ' + predecessor.title + '</h2>' +
+          '<div class="meta">Dependency edge</div>' +
+          (because ? '<p>' + because + '</p>' : '<p class="empty">No description provided.</p>');
+      }
+
+      // Shared member-list click wiring for the module / component panels.
+      function wireMemberList() {
+        panel.querySelectorAll('.member-list li').forEach(el => {
+          el.addEventListener('click', () => {
+            const s = byId[el.dataset.specId];
+            if (s) {
+              clearFilters();
+              cy.$(':selected').unselect();
+              cy.getElementById(s.id).select();
+              showSpecPanel(s);
+            }
+          });
+        });
+      }
+
+      function showModulePanel(m, members) {
+        const other = activeFilter.layer && layerById[activeFilter.layer];
+        const note = other
+          ? '<p class="filter-note">Highlight narrowed to specs also in component: ' +
+            escapeHtmlText(other.name) + '</p>'
+          : '';
+        panel.innerHTML =
+          '<h2>' + m.name + ' <span class="chip ' + m.type + '" style="cursor:default">' + m.type + '</span></h2>' +
+          '<div class="meta">' + members.length + ' member specs</div>' +
+          (m.description ? '<p>' + m.description + '</p>' : '') +
+          note +
+          '<ul class="member-list">' +
+          members.map(s => '<li data-spec-id="' + s.id + '">' + s.ordinal + '. ' + s.full_title + '</li>').join('') +
+          '</ul>';
+        wireMemberList();
+      }
+
+      function showLayerPanel(l, members) {
+        const other = activeFilter.module && moduleById[activeFilter.module];
+        const note = other
+          ? '<p class="filter-note">Highlight narrowed to specs also in module: ' +
+            escapeHtmlText(other.name) + '</p>'
+          : '';
+        panel.innerHTML =
+          '<h2>' + escapeHtmlText(l.name) +
+          ' <span class="chip layer-' + l.id + '" style="cursor:default">' + l.letter + '</span></h2>' +
+          '<div class="meta">' + members.length + ' member specs · component</div>' +
+          (l.description ? '<p>' + escapeHtmlText(l.description) + '</p>' : '') +
+          note +
+          '<ul class="member-list">' +
+          members.map(s => '<li data-spec-id="' + s.id + '">' + s.ordinal + '. ' + escapeHtmlText(s.full_title) + '</li>').join('') +
+          '</ul>';
+        wireMemberList();
+      }
+
+      // ──────────────────────────────────────────────────────────────
+      // Wire up taps
+      // ──────────────────────────────────────────────────────────────
+      cy.on('tap', 'node', evt => {
+        clearFilters();
+        const s = byId[evt.target.id()];
+        if (s) showSpecPanel(s);
+      });
+
+      cy.on('tap', 'edge', evt => {
+        clearFilters();
+        showEdgePanel(evt.target);
+      });
+
+      cy.on('tap', evt => {
+        if (evt.target === cy) { clearFilters(); panel.innerHTML = EMPTY_PANEL; }
+      });
+
+      // Initial panel state.
+      renderLeftPanel();
+    })();
+  </script>
+</body>
+</html>
