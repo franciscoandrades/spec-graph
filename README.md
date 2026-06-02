@@ -12,7 +12,7 @@ the data, and writes one HTML file.
 
 ## What's inside
 
-Three composable skills:
+Three composable skills, plus one command that drives them end to end:
 
 | Skill | Does |
 |-------|------|
@@ -25,6 +25,12 @@ Each skill **asks you** for what it needs rather than assuming your
 conventions — where your specs live, what your frontmatter looks like, whether
 you keep a taxonomy file, and where to write the output.
 
+**Skills vs. the command.** The skills are the engine — Claude invokes them
+automatically when your request matches (*"show me how my specs depend on each
+other"*), and chains them as needed. The `/spec-graph` command is a thin,
+discoverable entry point that runs the whole pipeline explicitly; it just
+delegates to the three skills rather than duplicating their logic.
+
 ## Install
 
 ```
@@ -34,8 +40,15 @@ you keep a taxonomy file, and where to write the output.
 
 (The `@spec-graph` suffix is the marketplace name. Add via a **git** URL/owner-repo, not a direct link to `marketplace.json`, so the relative plugin source resolves.)
 
-Then just ask Claude: *"build a spec graph for my specs in `docs/specs/`"* (or
-*"show me how my specs depend on each other"*).
+Then either run the command:
+
+```
+/spec-graph docs/specs/
+```
+
+or just ask Claude in plain language: *"build a spec graph for my specs in
+`docs/specs/`"* (or *"show me how my specs depend on each other"*) — the skills
+trigger on their own.
 
 ## What a "spec" looks like
 
