@@ -34,13 +34,6 @@ you keep a taxonomy file, and where to write the output.
 
 (The `@spec-graph` suffix is the marketplace name. Add via a **git** URL/owner-repo, not a direct link to `marketplace.json`, so the relative plugin source resolves.)
 
-For local testing before publishing, point the marketplace at your local clone:
-
-```
-/plugin marketplace add ~/Desktop/spec-graph
-/plugin install spec-graph@spec-graph
-```
-
 Then just ask Claude: *"build a spec graph for my specs in `docs/specs/`"* (or
 *"show me how my specs depend on each other"*).
 
