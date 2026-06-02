@@ -28,6 +28,25 @@ proceeding.
 
 ### Step 1b — List candidate files and confirm what counts as a spec
 
+**What counts as a spec.** A spec *defines intended behaviour, structure, or
+decisions that the work must satisfy* — e.g. scope docs, design specs, data
+models, reference architectures, requirement/contract docs. It is the "what and
+why": durable, and depended-upon by other work.
+
+**Default exclusions (do not treat as specs unless the user opts in).** These
+are *about* the work rather than a specification of it:
+
+- **implementation plans / task lists / step-by-step build guides** — the most
+  common false positive; a `*-plan.md` that restates a spec as ordered tasks is
+  a plan, not a spec;
+- ADRs, status/progress reports, meeting notes, demo or video scripts,
+  READMEs, CHANGELOGs, and templates.
+
+Include any excluded type ONLY when the user explicitly asks (e.g. "include the
+implementation plans too"). When the corpus pairs each spec with a plan (common
+in design-doc → plan workflows, e.g. a `specs/` dir beside a `plans/` dir),
+surface the split and **default to the specs only**, then let the user widen it.
+
 Once the directory is known, glob it for `*.md` files and **present the full
 list to the user** before reading or parsing anything. Do not assume every
 `*.md` file is a spec.
@@ -143,10 +162,20 @@ Semantics: `from` = successor (the spec that depends), `to` = predecessor (the
 spec being depended on). Downstream renderers rely on this direction — be
 precise.
 
-- Bare-string entry → `because: null`
-- Object entry `{id, because}` → copy `because` verbatim
-- Optionally, if the successor's `purpose` text clearly states the reason for
-  the dependency, lift it as `because`. Never invent one.
+**Enrich every edge with a `because`.** The `because` is a short phrase
+(≤ ~12 words) describing *why* the successor depends on the predecessor — what
+it needs from it (e.g. "builds on the data model", "consumes the synthetic-data
+contract", "implements UC-2"). Derive it, in priority order, from:
+
+1. an explicit object entry `{id, because}` → copy it verbatim;
+2. the cross-reference context in the successor's prose where it cites the
+   predecessor (e.g. "per `Y.md §4`", "extends X", "depends on …");
+3. the successor's `purpose` / §0 text when it states the reason.
+
+Ground every `because` in the text — **do not fabricate** a rationale. Only when
+no textual basis exists (a bare-string entry with no supporting prose) leave
+`because: null`. Aim to fill it whenever the corpus gives you something to stand on.
+
 - If a dependency id matches no parsed spec → DROP the edge and emit a WARNING
   naming both the referencing spec and the missing id.
 

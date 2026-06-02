@@ -525,11 +525,13 @@
       }
 
       function showSpecPanel(s) {
-        const hasContent = !!(s.content && s.content.trim());
+        const hasWalkthrough =
+          (Array.isArray(s.walkthrough) && s.walkthrough.length > 0) ||
+          !!(s.content && s.content.trim());
         const tabs =
           '<div class="tabs">' +
           '<button class="tab active" data-tab="overview" type="button">Overview</button>' +
-          (hasContent ? '<button class="tab" data-tab="walkthrough" type="button">Walkthrough</button>' : '') +
+          (hasWalkthrough ? '<button class="tab" data-tab="walkthrough" type="button">Walkthrough</button>' : '') +
           '</div>';
         panel.innerHTML = tabs + '<div class="tab-content"></div>';
         panel.querySelectorAll('.tabs .tab').forEach(btn => {
