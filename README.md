@@ -8,6 +8,8 @@ It is a set of *agent skills*, not a CLI or library. There is nothing to
 install into your project and no build step: Claude reads your specs, extracts
 the data, and writes one HTML file.
 
+![The rendered spec-graph viewer — Components and Modules filter rails on the left, an interactive dependency DAG in the center, and a click-to-read detail panel on the right.](docs/spec-graph.png)
+
 ## What's inside
 
 Three composable skills:
